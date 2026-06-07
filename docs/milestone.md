@@ -1,7 +1,7 @@
 # 开发里程碑
 
-> 版本：v1.1  
-> 状态：已确认  
+> 版本：v1.2  
+> 状态：M1–M4 已完成  
 > 更新日期：2026-06-06
 
 每个 Milestone 预估 **1–3 天**。总计约 **12–16 个工作日**。
@@ -10,14 +10,14 @@
 
 ## 里程碑总览
 
-| 编号 | 名称 | 预估 | 依赖 |
-|------|------|------|------|
-| M1 | 数据库设计 | 1 天 | — |
-| M2 | 后端基础框架 | 2 天 | M1 |
-| M3 | 测试列表 | 2 天 | M2 |
-| M4 | 答题功能 | 3 天 | M3 |
-| M5 | 历史记录 | 2 天 | M4 |
-| M6 | 管理后台 | 3 天 | M2（可与 M3–M5 部分并行） |
+| 编号 | 名称 | 预估 | 依赖 | 状态 |
+|------|------|------|------|------|
+| M1 | 数据库设计 | 1 天 | — | ✅ 已完成 |
+| M2 | 后端基础框架 | 2 天 | M1 | ✅ 已完成 |
+| M3 | 测试列表 | 2 天 | M2 | ✅ 已完成 |
+| M4 | 答题功能 | 3 天 | M3 | ✅ 已完成 |
+| M5 | 历史记录 | 2 天 | M4 | 待开始 |
+| M6 | 管理后台 | 3 天 | M2（可与 M3–M5 部分并行） | 待开始 |
 
 ```mermaid
 gantt
@@ -36,7 +36,7 @@ gantt
 
 ---
 
-## M1 数据库设计（1 天）
+## M1 数据库设计（1 天）✅
 
 ### 目标
 
@@ -49,14 +49,16 @@ gantt
 | 编写 8 张表 DDL | `user`、`admin_user`、`quiz`、`question`、`option`、`result_rule`、`test_attempt`、`answer` |
 | 创建本地 MySQL 库 | `psych_miniapp` |
 | 初始化管理员账号 | 1 条 `admin_user` |
-| 验证约束 | 含 `quiz.cover_image_url`、`quiz.deleted_at`、`test_attempt` 快照三字段 |
+| 验证约束 | 含 `quiz.cover_image_url`、`quiz.deleted_at`、`test_attempt` 快照字段（含 `result_suggestion`） |
 
 ### 验收标准
 
-- [ ] 字段与 `schema.md` v1.1 一致
-- [ ] `test_attempt` 含 `quiz_title`、`result_title`、`result_description`
-- [ ] `quiz` 含 `cover_image_url`、`deleted_at`
-- [ ] 唯一约束生效：`user.openid`、`admin_user.username`、`answer(attempt_id, question_id)`
+- [x] 字段与 `schema.md` v1.2 一致
+- [x] `test_attempt` 含 `quiz_title`、`result_title`、`result_description`、`result_suggestion`
+- [x] `quiz` 含 `cover_image_url`、`deleted_at`
+- [x] 唯一约束生效：`user.openid`、`admin_user.username`、`answer(attempt_id, question_id)`
+
+**产出：** `backend/src/main/resources/db/init.sql`
 
 ### 涉及文档
 
@@ -64,7 +66,7 @@ gantt
 
 ---
 
-## M2 后端基础框架（2 天）
+## M2 后端基础框架（2 天）✅
 
 ### 目标
 
@@ -86,17 +88,22 @@ gantt
 
 ### 验收标准
 
-- [ ] `mvn spring-boot:run` 本地启动成功
-- [ ] C 端登录返回简单 Token，`openid` 自动写入 `user` 表
-- [ ] 管理端登录校验单一管理员账号，返回简单 Token
-- [ ] 未携带有效 Token 访问受保护接口返回 40101
-- [ ] C 端 Token 与管理端 Token 互不通用
-- [ ] 统一响应格式与 `api.md` 一致
+- [x] `mvn spring-boot:run` 本地启动成功
+- [x] MySQL + MyBatis-Plus 持久层连通
+- [x] 统一响应体 `Result<T>` 与 `api.md` 一致
+- [x] 全局异常处理（`BizException`、`MethodArgumentNotValidException` → `40001`）
+- [x] CORS 本地配置（`WebMvcConfig`）
+- [ ] C 端登录返回简单 Token，`openid` 自动写入 `user` 表（待后续接入）
+- [ ] 管理端登录校验单一管理员账号，返回简单 Token（待 M6）
+- [ ] 未携带有效 Token 访问受保护接口返回 40101（待后续接入）
+- [ ] C 端 Token 与管理端 Token 互不通用（待后续接入）
+
+**M4 联调说明：** 答题接口暂用固定测试用户 `user_id = 1`（`seed-m4.sql` 中 `openid = mock-openid`），不依赖 Token。
 
 ### 涉及接口
 
-- `POST /api/auth/wechat/login`
-- `POST /api/admin/auth/login`
+- `POST /api/auth/wechat/login`（待实现）
+- `POST /api/admin/auth/login`（待实现）
 
 ### 涉及文档
 
@@ -105,7 +112,7 @@ gantt
 
 ---
 
-## M3 测试列表（2 天）
+## M3 测试列表（2 天）✅
 
 ### 目标
 
@@ -143,10 +150,18 @@ C 端可浏览已上架测试及详情页；管理端可创建和管理测试基
 
 ### 验收标准
 
-- [ ] C 端列表展示已上架、未删除测试（含 `coverImageUrl`）
-- [ ] 测试详情页展示完整信息，「开始测试」按钮就绪
-- [ ] 管理端可创建/编辑/软删除测试
-- [ ] 软删除测试 C 端不可见
+**后端（已实现）：**
+
+- [x] `GET /api/quizzes` 返回已上架、未删除测试（含 `coverImageUrl`）
+- [x] `GET /api/quizzes/{quizId}` 返回完整详情
+- [x] 软删除或未上架测试 C 端返回 `40401`
+
+**前端 / 管理端（待 M6 或独立迭代）：**
+
+- [ ] 小程序首页列表与测试详情页
+- [ ] 管理端测试 CRUD
+
+**产出：** `QuizController`、`QuizService`、`seed.sql`
 
 ### 涉及文档
 
@@ -155,7 +170,7 @@ C 端可浏览已上架测试及详情页；管理端可创建和管理测试基
 
 ---
 
-## M4 答题功能（3 天）
+## M4 答题功能（3 天）✅
 
 ### 目标
 
@@ -170,9 +185,9 @@ C 端可浏览已上架测试及详情页；管理端可创建和管理测试基
 | 获取题目（不含分值） | `GET /api/quizzes/{quizId}/questions` |
 | 提交答案 | `POST /api/attempts` |
 | 总分计分 + 规则匹配 | 仅提交时执行一次 |
-| 快照写入 | `quiz_title`、`result_title`、`result_description` |
-| 上架 / 下架 | `publish` / `unpublish` |
-| 题目 / 选项 / 规则 CRUD | 管理端接口 |
+| 快照写入 | `quiz_title`、`result_title`、`result_description`、`result_suggestion` |
+| 上架 / 下架 | `publish` / `unpublish`（待 M6） |
+| 题目 / 选项 / 规则 CRUD | 管理端接口（待 M6） |
 
 **小程序：**
 
@@ -184,17 +199,30 @@ C 端可浏览已上架测试及详情页；管理端可创建和管理测试基
 
 ### 验收标准
 
-- [ ] `POST /api/attempts` 请求体含 `quizId` + `answers`，响应为 `AttemptResult`
-- [ ] 快照字段在 `test_attempt` 中正确写入
-- [ ] 结果页数据全部来自提交响应
-- [ ] 选项 `score` 不暴露给 C 端
-- [ ] 上架校验完整（题目、选项、总分区间规则覆盖）
+**后端（已实现并通过联调）：**
+
+- [x] `GET /api/quizzes/{quizId}/questions` 返回题目与选项，**不含** `score`
+- [x] `POST /api/attempts` 请求体含 `quizId` + `answers`，响应为 `AttemptResult`
+- [x] 总分计分：`total_score = Σ(option.score)`
+- [x] `result_rule` 闭区间唯一匹配（0 条 / 多条 → `42201`）
+- [x] 快照字段写入 `test_attempt`（含 `result_suggestion`）
+- [x] `answer` 记录同事务写入，`answer.score` 为选项分值快照
+- [x] 业务校验：必答全部题、选项归属题目、题目归属测试
+- [x] 异常场景：`40401`、`40001`、`42201` 已验证
+
+**前端 / 管理端（待后续）：**
+
+- [ ] 小程序答题页一题一屏与结果页
+- [ ] 上架前规则覆盖校验（`QuizPublishValidator`，待 M6）
+
+**产出：** `AttemptController`、`AttemptService`、`ScoringService`、`seed-m4.sql`
 
 ### 涉及文档
 
 - `requirements.md` §3.4、§3.5、§5
 - `schema.md` §3.6、§3.7
 - `api.md` §2.4、§2.5、§3.7–§3.17
+- `architecture.md` §8.2（Attempt / Scoring 调用链）
 
 ---
 
@@ -289,3 +317,4 @@ C 端可浏览已上架测试及详情页；管理端可创建和管理测试基
 | 结果规则配置错误 | 展示 `scoreRange` + 上架校验 |
 | 服务重启 Token 失效 | MVP 可接受，用户重新登录 |
 | M6 与 M3/M4 重叠 | M3/M4 先做最小可用，M6 统一打磨 |
+| M4 阶段无 Token | 固定 `user_id = 1` 联调；微信登录接入后替换 `AttemptController` 取 userId 方式 |

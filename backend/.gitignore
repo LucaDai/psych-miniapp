@@ -13,5 +13,20 @@ target/
 .project
 .settings/
 
+# macOS
 .DS_Store
-*.log
+**/.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Build
+target/
+
+# Local config
+backend/src/main/resources/application-local.yml
+
+# Env
+.env
+.env.*

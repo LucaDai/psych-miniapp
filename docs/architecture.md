@@ -1,12 +1,12 @@
 # 后端架构设计
 
-> 版本：v1.0  
-> 状态：已确认  
+> 版本：v1.1  
+> 状态：M4 后端已实现  
 > 更新日期：2026-06-06
 
-本文档描述心理自测小程序 MVP 后端架构。技术栈：**Spring Boot 3、Java 17、Maven、MySQL**。
+本文档描述心理自测小程序 MVP 后端架构。技术栈：**Spring Boot 3、Java 17、Maven、MySQL、MyBatis-Plus**。
 
-不包含代码、SQL 或项目文件，仅作设计与命名约定。
+设计与命名约定；§8.3 起补充 M4 已落地调用链（与代码一致）。
 
 ---
 
@@ -136,7 +136,7 @@ Entity 与数据库表一一对应，放在各自领域包的 `entity` 子包（
 **`TestAttempt`（快照核心）**
 - 关联：`id`、`userId`、`quizId`、`resultRuleId`
 - 计分：`totalScore`
-- 快照：`quizTitle`、`resultTitle`、`resultDescription`
+- 快照：`quizTitle`、`resultTitle`、`resultDescription`、`resultSuggestion`
 - 时间：`completedAt`
 
 ---
@@ -203,7 +203,9 @@ DTO 分三类：**Request**（入参）、**Response**（出参）、**内部传
 | `totalScore` | `TestAttempt.totalScore` |
 | `resultTitle` | `TestAttempt.resultTitle` |
 | `resultDescription` | `TestAttempt.resultDescription` |
+| `resultSuggestion` | `TestAttempt.resultSuggestion` |
 | `completedAt` | `TestAttempt.completedAt` |
+| `disclaimer` | `AppConstants.DISCLAIMER`（不落库） |
 
 历史详情 Service **禁止**从 `ResultRule` 重新取标题/描述。
 
@@ -470,7 +472,10 @@ com.psych.miniapp
 │   │   └── AttemptController
 │   ├── service
 │   │   ├── AttemptService          # 提交、历史查询
-│   │   └── ScoringService          # 总分计分、规则匹配（仅提交时调用）
+│   │   ├── ScoringService          # 总分计分、规则匹配（仅提交时调用）
+│   │   └── model
+│   │       ├── ScoringInput        # Service 内部传输对象
+│   │       └── ScoringResult
 │   ├── entity
 │   │   ├── TestAttempt
 │   │   └── Answer
@@ -505,18 +510,69 @@ com.psych.miniapp
 
 **`ScoringService`**
 - 仅被 `AttemptService.submit()` 调用
-- 输入：题目、选项、用户答案
-- 输出：totalScore、命中的 ResultRule
+- 入参：`ScoringInput`（quiz、questions、optionMap、answers）
+- 出参：`ScoringResult`（totalScore、matchedRule、answerRecords）
+- 规则匹配：`result_rule` 闭区间唯一命中，否则 `42201`
 - 不被历史查询路径调用
 
 **`AttemptService`**
-- `submit(SubmitAttemptRequest)` → 调用 ScoringService → 写快照 → 返回 `AttemptResultResponse`
-- `getById(attemptId)` → 直读 `TestAttempt` + `Answer` → 返回 `AttemptDetailResponse`
-- `listByUser(userId, page)` → 直读快照字段
+- `submit(SubmitAttemptRequest, userId)` → `@Transactional`：校验 → `ScoringService` → 写 `test_attempt` + `answer` → 返回 `AttemptResultResponse`
+- `getById(attemptId)` → 直读 `TestAttempt` + `Answer` → 返回 `AttemptDetailResponse`（待 M5）
+- `listByUser(userId, page)` → 直读快照字段（待 M5）
+
+**`QuizService`（M4 扩展）**
+- `requirePublishedQuiz(quizId)` → 已上架且未软删，否则 `40401`（`AttemptService` 与拉题共用）
+- `getPublishedQuestions(quizId)` → 题目 + 选项（不含 score）
 
 **`QuizPublishValidator`**
 - 校验题目数、选项数、规则区间覆盖与重叠
-- 上架接口调用
+- 上架接口调用（待 M6）
+
+### 8.3 M4 已落地调用链
+
+#### GET `/api/quizzes/{quizId}/questions`
+
+```
+QuizController.questions(quizId)
+  └─ QuizService.getPublishedQuestions(quizId)
+       ├─ requirePublishedQuiz(quizId)          → QuizMapper.selectById
+       ├─ QuestionMapper.selectList             → quiz_id, ORDER BY sort_order
+       ├─ OptionMapper.selectList               → question_id IN (...), ORDER BY sort_order
+       └─ QuizConverter.toQuestionsResponse     → 选项映射丢弃 score
+```
+
+#### POST `/api/attempts`
+
+```
+AttemptController.submit(@Valid SubmitAttemptRequest)
+  │  userId = 1L（M4 固定测试用户，待鉴权接入后改为 UserContext）
+  └─ AttemptService.submit(request, userId)     → @Transactional
+       ├─ QuizService.requirePublishedQuiz
+       ├─ QuestionMapper.selectList             → 完整性校验（42201）
+       ├─ OptionMapper.selectBatchIds           → 选项归属校验（42201）
+       ├─ ScoringService.scoreAndMatch(ScoringInput)
+       │    ├─ totalScore = Σ option.score
+       │    └─ ResultRuleMapper.selectList      → 闭区间唯一匹配（42201）
+       ├─ TestAttemptMapper.insert              → 快照含 resultSuggestion
+       ├─ AnswerMapper.insert × N               → 同事务
+       └─ AttemptConverter.toResultResponse     → 填充 disclaimer
+```
+
+#### M4 事务边界（已实现）
+
+| 步骤 | 操作 | 失败 |
+|------|------|------|
+| 1–5 | 只读查询 + 内存计分/匹配 | 抛 `BizException`，无写库 |
+| 6 | `INSERT test_attempt` | 整体回滚 |
+| 7 | `INSERT answer` × 题目数 | 整体回滚 |
+
+#### M4 临时联调约定
+
+| 项 | 当前实现 | 目标（后续） |
+|----|----------|--------------|
+| 用户身份 | `AttemptController` 常量 `TEST_USER_ID = 1L` | `UserContext` + C 端 Token |
+| 鉴权 | 拉题/提交接口无拦截器 | `AuthInterceptor` 校验 Bearer Token |
+| 测试数据 | `seed-m4.sql`：`user.id=1`, `openid=mock-openid` | 微信登录自动创建用户 |
 
 ---
 
@@ -527,7 +583,7 @@ com.psych.miniapp
 | 框架 | Spring Boot 3 | 与 Java 17 配套 |
 | 构建 | Maven | 单模块即可 |
 | 数据库 | MySQL 8 | 本地开发 |
-| 持久层 | MyBatis 或 Spring Data JPA | 择一，MVP 推荐 JPA 减少样板代码 |
+| 持久层 | MyBatis-Plus | 已选用；`BaseMapper` + `LambdaQueryWrapper`，M4 无 XML |
 | 密码哈希 | BCrypt | `spring-security-crypto` 即可，不引入完整 Security 链 |
 | JSON | Jackson | Spring Boot 默认 |
 | 校验 | Jakarta Validation | `@Valid`、`@NotNull` 等 |

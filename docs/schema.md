@@ -1,7 +1,7 @@
 # 数据库实体设计
 
 > 版本：v1.2  
-> 状态：已确认  
+> 状态：已与 M4 实现对齐  
 > 更新日期：2026-06-06
 
 本文档描述 MVP 第一版所有数据库实体、字段及关系。不包含建表 SQL。
@@ -270,6 +270,16 @@ erDiagram
 - 历史查询（`GET /api/attempts/{attemptId}`）**直接读取本表字段**，不重新计分、不重新匹配规则
 - 不提供删除接口，记录永久保留
 
+**API 字段对应（M4 已验证）：**
+
+| DB 列 | API 响应字段 | 写入来源 |
+|-------|-------------|----------|
+| `quiz_title` | `quizTitle` | `quiz.title` |
+| `result_title` | `resultTitle` | `result_rule.title` |
+| `result_description` | `resultDescription` | `result_rule.description` |
+| `result_suggestion` | `resultSuggestion` | `result_rule.suggestion`（可为 NULL） |
+| `total_score` | `totalScore` | 提交时 `Σ(option.score)` |
+
 **索引建议：** `(user_id, completed_at DESC)`
 
 ---
@@ -337,5 +347,7 @@ max_possible_score = sum(max(option.score) for each question in quiz)
 
 | 数据 | 说明 |
 |------|------|
-| admin_user | 1 条，预置单一管理员账号 |
-| quiz | 3 条，由管理端创建并上架 |
+| admin_user | 1 条，预置单一管理员账号（`init.sql`） |
+| user | M4 联调：`id = 1`，`openid = mock-openid`（`seed-m4.sql`） |
+| quiz | M3 冒烟 1 条 + M4 题目/选项/规则（`seed.sql` + `seed-m4.sql`） |
+| quiz（完整） | 3 条上架测试，待 M6 管理端录入 |

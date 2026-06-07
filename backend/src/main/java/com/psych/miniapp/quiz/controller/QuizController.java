@@ -3,6 +3,7 @@ package com.psych.miniapp.quiz.controller;
 import com.psych.miniapp.common.response.Result;
 import com.psych.miniapp.quiz.dto.QuizDetailResponse;
 import com.psych.miniapp.quiz.dto.QuizListResponse;
+import com.psych.miniapp.quiz.dto.QuizQuestionsResponse;
 import com.psych.miniapp.quiz.service.QuizService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,5 +26,10 @@ public class QuizController {
     @GetMapping("/{quizId}")
     public Result<QuizDetailResponse> detail(@PathVariable Long quizId) {
         return Result.ok(quizService.getPublishedById(quizId));
+    }
+
+    @GetMapping("/{quizId}/questions")
+    public Result<QuizQuestionsResponse> questions(@PathVariable Long quizId) {
+        return Result.ok(quizService.getPublishedQuestions(quizId));
     }
 }
