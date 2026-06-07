@@ -1,0 +1,15 @@
+You are helping build a WeChat Mini Program MVP for psychological self-assessment quizzes.
+
+Rules:
+- Build MVP first.
+- Do not add features unless explicitly requested.
+- Keep code simple and readable.
+- Do not implement medical diagnosis.
+- Use wording like "self-assessment", "for reference only", and "not medical advice".
+- Before large changes, propose a short plan first.
+
+Tech stack:
+- Backend: Spring Boot, Java 17, Maven, MySQL.
+- Admin: React, TypeScript, Ant Design.
+- Mini Program: native WeChat Mini Program.
+- Use REST APIs.
