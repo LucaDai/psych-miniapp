@@ -347,7 +347,16 @@ max_possible_score = sum(max(option.score) for each question in quiz)
 
 | 数据 | 说明 |
 |------|------|
-| admin_user | 1 条，预置单一管理员账号（`init.sql`） |
-| user | M4 联调：`id = 1`，`openid = mock-openid`（`seed-m4.sql`） |
-| quiz | M3 冒烟 1 条 + M4 题目/选项/规则（`seed.sql` + `seed-m4.sql`） |
+| admin_user | 1 条，预置单一管理员账号（`seed.sql`，密码 `admin123`） |
+| user | C 端联调：`id = 1`，`openid = mock-openid`（`seed.sql`） |
+| quiz | 「压力自测」已上架（`seed.sql`） |
+| question / option / result_rule | M4 联调数据（`seed.sql`） |
+| test_attempt / answer | **不在 seed 中**；联调时通过 `POST /api/attempts` 生成 |
 | quiz（完整） | 3 条上架测试，待 M6 管理端录入 |
+
+**初始化命令：**
+
+```bash
+mysql < backend/src/main/resources/db/init.sql   # 仅 DDL
+mysql < backend/src/main/resources/db/seed.sql # 业务种子数据
+```

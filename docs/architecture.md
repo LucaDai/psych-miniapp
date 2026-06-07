@@ -150,7 +150,7 @@ DTO 分三类：**Request**（入参）、**Response**（出参）、**内部传
 | 类名 | 用途 |
 |------|------|
 | `Result<T>` | 统一响应包装：`code`、`message`、`data` |
-| `PageResult<T>` | 分页：`list`、`total`、`page`、`pageSize` |
+| `PageResult<T>` | 分页：`list`、`total`、`page`、`pageSize`（管理端预留；M5 历史列表 MVP 直接返回 `List`） |
 
 ### 4.2 C 端 DTO
 
@@ -166,9 +166,9 @@ DTO 分三类：**Request**（入参）、**Response**（出参）、**内部传
 | `SubmitAttemptRequest` | Request | `POST /api/attempts` |
 | `AnswerItemRequest` | Request | 作答子项 |
 | `AttemptResultResponse` | Response | 提交结果 & 历史详情核心 |
-| `AttemptListItemResponse` | Response | `GET /api/attempts` 列表项 |
-| `AttemptDetailResponse` | Response | `GET /api/attempts/{id}`，继承/组合 `AttemptResultResponse` + `answers` |
-| `AnswerDetailResponse` | Response | 历史详情中的答题明细 |
+| `AttemptListItemResponse` | Response | `GET /api/attempts` 列表项（MVP 返回 `List`，无分页） |
+| `AttemptDetailResponse` | Response | `GET /api/attempts/{id}`，结果区快照 + `answers` |
+| `AnswerDetailResponse` | Response | 历史详情作答明细（`score` 快照；文案读当前 `question`/`option`） |
 
 ### 4.3 管理端 DTO
 
@@ -517,8 +517,8 @@ com.psych.miniapp
 
 **`AttemptService`**
 - `submit(SubmitAttemptRequest, userId)` → `@Transactional`：校验 → `ScoringService` → 写 `test_attempt` + `answer` → 返回 `AttemptResultResponse`
-- `getById(attemptId)` → 直读 `TestAttempt` + `Answer` → 返回 `AttemptDetailResponse`（待 M5）
-- `listByUser(userId, page)` → 直读快照字段（待 M5）
+- `listByUser(userId)` → 直读 `test_attempt` 快照，返回 `List<AttemptListItemResponse>`（不调用 `ScoringService`）
+- `getDetail(attemptId, userId)` → 直读 `test_attempt` + `answer` 快照，关联 `question`/`option` 取展示文案（不调用 `ScoringService`）
 
 **`QuizService`（M4 扩展）**
 - `requirePublishedQuiz(quizId)` → 已上架且未软删，否则 `40401`（`AttemptService` 与拉题共用）
@@ -566,13 +566,41 @@ AttemptController.submit(@Valid SubmitAttemptRequest)
 | 6 | `INSERT test_attempt` | 整体回滚 |
 | 7 | `INSERT answer` × 题目数 | 整体回滚 |
 
-#### M4 临时联调约定
+#### GET `/api/attempts`（M5 已实现）
+
+```
+AttemptController.list()
+  │  userId = 1L
+  └─ AttemptService.listByUser(userId)
+       ├─ TestAttemptMapper.selectList     → user_id = ?, ORDER BY completed_at DESC
+       └─ AttemptConverter.toListItemResponse(each)
+```
+
+#### GET `/api/attempts/{attemptId}`（M5 已实现）
+
+```
+AttemptController.detail(attemptId)
+  │  userId = 1L
+  └─ AttemptService.getDetail(attemptId, userId)
+       ├─ TestAttemptMapper.selectById       → 不存在或非本人 → 40401
+       ├─ AnswerMapper.selectList          → attempt_id = ?
+       ├─ QuestionMapper.selectBatchIds    → 仅取 content / sortOrder（展示）
+       ├─ OptionMapper.selectBatchIds      → 仅取 content（展示）
+       └─ AttemptConverter.toDetailResponse
+            ├─ 结果区：test_attempt 快照
+            └─ answers：score 来自 answer；文案来自 question/option 当前值
+```
+
+> 历史查询路径**禁止**调用 `ScoringService`、`ResultRuleMapper`。
+
+#### M4/M5 临时联调约定
 
 | 项 | 当前实现 | 目标（后续） |
 |----|----------|--------------|
 | 用户身份 | `AttemptController` 常量 `TEST_USER_ID = 1L` | `UserContext` + C 端 Token |
-| 鉴权 | 拉题/提交接口无拦截器 | `AuthInterceptor` 校验 Bearer Token |
-| 测试数据 | `seed-m4.sql`：`user.id=1`, `openid=mock-openid` | 微信登录自动创建用户 |
+| 鉴权 | 拉题/提交/历史接口无拦截器 | `AuthInterceptor` 校验 Bearer Token |
+| 归属错误 | 不存在或非本人均 `40401` | 接入鉴权后可区分 `40301` |
+| 测试数据 | `seed.sql`：`user.id=1`；历史由 `POST /api/attempts` 生成 | 微信登录自动创建用户 |
 
 ---
 

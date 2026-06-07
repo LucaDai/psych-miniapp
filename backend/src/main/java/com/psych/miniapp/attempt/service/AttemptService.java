@@ -3,6 +3,8 @@ package com.psych.miniapp.attempt.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.psych.miniapp.attempt.converter.AttemptConverter;
 import com.psych.miniapp.attempt.dto.AnswerItemRequest;
+import com.psych.miniapp.attempt.dto.AttemptDetailResponse;
+import com.psych.miniapp.attempt.dto.AttemptListItemResponse;
 import com.psych.miniapp.attempt.dto.AttemptResultResponse;
 import com.psych.miniapp.attempt.dto.SubmitAttemptRequest;
 import com.psych.miniapp.attempt.entity.Answer;
@@ -69,6 +71,43 @@ public class AttemptService {
         }
 
         return attemptConverter.toResultResponse(attempt);
+    }
+
+    public List<AttemptListItemResponse> listByUser(Long userId) {
+        List<TestAttempt> attempts = testAttemptMapper.selectList(new LambdaQueryWrapper<TestAttempt>()
+                .eq(TestAttempt::getUserId, userId)
+                .orderByDesc(TestAttempt::getCompletedAt));
+        return attempts.stream()
+                .map(attemptConverter::toListItemResponse)
+                .toList();
+    }
+
+    public AttemptDetailResponse getDetail(Long attemptId, Long userId) {
+        TestAttempt attempt = requireOwnedAttempt(attemptId, userId);
+        List<Answer> answers = answerMapper.selectList(new LambdaQueryWrapper<Answer>()
+                .eq(Answer::getAttemptId, attemptId));
+
+        List<Long> questionIds = answers.stream().map(Answer::getQuestionId).distinct().toList();
+        List<Long> optionIds = answers.stream().map(Answer::getOptionId).distinct().toList();
+
+        Map<Long, Question> questionMap = questionIds.isEmpty()
+                ? Map.of()
+                : questionMapper.selectBatchIds(questionIds).stream()
+                        .collect(Collectors.toMap(Question::getId, Function.identity()));
+        Map<Long, Option> optionMap = optionIds.isEmpty()
+                ? Map.of()
+                : optionMapper.selectBatchIds(optionIds).stream()
+                        .collect(Collectors.toMap(Option::getId, Function.identity()));
+
+        return attemptConverter.toDetailResponse(attempt, answers, questionMap, optionMap);
+    }
+
+    private TestAttempt requireOwnedAttempt(Long attemptId, Long userId) {
+        TestAttempt attempt = testAttemptMapper.selectById(attemptId);
+        if (attempt == null || !attempt.getUserId().equals(userId)) {
+            throw new BizException(ErrorCode.NOT_FOUND);
+        }
+        return attempt;
     }
 
     private List<Question> listQuestionsByQuizId(Long quizId) {

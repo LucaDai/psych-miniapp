@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/psych_miniapp?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: ${DB_PASSWORD:Dai1996619!}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+cors:
+  allowed-origins: http://localhost:5173

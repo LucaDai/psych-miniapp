@@ -1,7 +1,7 @@
 # 开发里程碑
 
-> 版本：v1.2  
-> 状态：M1–M4 已完成  
+> 版本：v1.3  
+> 状态：M1–M5 后端已完成  
 > 更新日期：2026-06-06
 
 每个 Milestone 预估 **1–3 天**。总计约 **12–16 个工作日**。
@@ -16,7 +16,7 @@
 | M2 | 后端基础框架 | 2 天 | M1 | ✅ 已完成 |
 | M3 | 测试列表 | 2 天 | M2 | ✅ 已完成 |
 | M4 | 答题功能 | 3 天 | M3 | ✅ 已完成 |
-| M5 | 历史记录 | 2 天 | M4 | 待开始 |
+| M5 | 历史记录 | 2 天 | M4 | ✅ 已完成（后端） |
 | M6 | 管理后台 | 3 天 | M2（可与 M3–M5 部分并行） | 待开始 |
 
 ```mermaid
@@ -98,7 +98,7 @@ gantt
 - [ ] 未携带有效 Token 访问受保护接口返回 40101（待后续接入）
 - [ ] C 端 Token 与管理端 Token 互不通用（待后续接入）
 
-**M4 联调说明：** 答题接口暂用固定测试用户 `user_id = 1`（`seed-m4.sql` 中 `openid = mock-openid`），不依赖 Token。
+**M4/M5 联调说明：** C 端接口暂用固定测试用户 `user_id = 1`（`seed.sql` 中 `openid = mock-openid`），不依赖 Token。
 
 ### 涉及接口
 
@@ -215,7 +215,7 @@ C 端可浏览已上架测试及详情页；管理端可创建和管理测试基
 - [ ] 小程序答题页一题一屏与结果页
 - [ ] 上架前规则覆盖校验（`QuizPublishValidator`，待 M6）
 
-**产出：** `AttemptController`、`AttemptService`、`ScoringService`、`seed-m4.sql`
+**产出：** `AttemptController`、`AttemptService`、`ScoringService`；测试数据统一在 `seed.sql`
 
 ### 涉及文档
 
@@ -226,7 +226,7 @@ C 端可浏览已上架测试及详情页；管理端可创建和管理测试基
 
 ---
 
-## M5 历史记录（2 天）
+## M5 历史记录（2 天）✅
 
 ### 目标
 
@@ -240,8 +240,8 @@ C 端可浏览已上架测试及详情页；管理端可创建和管理测试基
 |------|------|
 | 历史列表 | `GET /api/attempts` |
 | 历史详情 | `GET /api/attempts/{attemptId}` |
-| 快照直读 | 禁止调用计分/规则匹配逻辑 |
-| 权限校验 | 仅本人记录 |
+| 快照直读 | 禁止调用 `ScoringService` / 规则匹配 |
+| 归属校验 | 不存在或非本人 → `40401`（MVP 不区分 `40301`） |
 
 **小程序：**
 
@@ -252,16 +252,38 @@ C 端可浏览已上架测试及详情页；管理端可创建和管理测试基
 
 ### 验收标准
 
-- [ ] 列表字段来自 `test_attempt` 快照
-- [ ] 详情不重新计分、不重新匹配规则
-- [ ] 修改 `result_rule` 后，旧历史仍显示原快照内容
+**后端（已实现）：**
+
+- [x] 列表返回 `List<AttemptListItemResponse>`，字段来自 `test_attempt` 快照（MVP 无分页）
+- [x] 详情不重新计分、不重新匹配规则；`listByUser` / `getDetail` 不调用 `ScoringService`
+- [x] 结果区读 `test_attempt` 快照；`answer.score` 读快照；`questionContent` / `optionContent` 读当前 `question` / `option`
+- [x] 不存在或非本人记录均返回 `40401`
+- [x] 无删除接口
+
+**联调验证（需 POST 造数）：**
+
+- [ ] 修改 `result_rule` 后，旧历史结果区仍显示原快照
 - [ ] 测试软删除后，历史仍可通过 `quiz_title` 快照正常展示
-- [ ] 无删除入口与删除接口
+
+**前端（待后续）：**
+
+- [ ] 小程序历史列表与详情页
+
+**产出：** `AttemptListItemResponse`、`AttemptDetailResponse`、`AnswerDetailResponse`；`seed.sql` 合并 M3/M4 数据
+
+### 测试数据
+
+```bash
+mysql < backend/src/main/resources/db/init.sql
+mysql < backend/src/main/resources/db/seed.sql
+# 历史记录通过 POST /api/attempts 生成
+```
 
 ### 涉及文档
 
 - `requirements.md` §3.6
 - `api.md` §2.6、§2.7
+- `architecture.md` §8.4（M5 调用链）
 
 ---
 
